@@ -23,32 +23,10 @@
  */
 package org.jenkinsci.plugins.googlelogin;
 
-import com.google.api.client.auth.oauth2.AuthorizationCodeFlow;
-import com.google.api.client.auth.oauth2.BearerToken;
-import com.google.api.client.auth.oauth2.ClientParametersAuthentication;
-import com.google.api.client.auth.oauth2.Credential;
-import com.google.api.client.auth.openidconnect.IdToken;
-import com.google.api.client.auth.openidconnect.IdTokenResponse;
-import com.google.api.client.http.GenericUrl;
-import com.google.api.client.http.HttpRequest;
-import com.google.api.client.http.HttpRequestFactory;
-import com.google.api.client.http.HttpRequestInitializer;
-import com.google.api.client.http.HttpTransport;
-import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.client.json.JsonFactory;
-import com.google.api.client.json.JsonObjectParser;
-import com.google.api.client.json.jackson2.JacksonFactory;
-import com.google.common.annotations.VisibleForTesting;
-import hudson.Extension;
-import hudson.Util;
-import hudson.model.Descriptor;
-import hudson.model.Failure;
-import hudson.model.User;
-import hudson.security.SecurityRealm;
-import hudson.util.HttpResponses;
-import hudson.util.Secret;
-import jenkins.model.Jenkins;
-import jenkins.security.SecurityListener;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.StringTokenizer;
+
 import org.acegisecurity.Authentication;
 import org.acegisecurity.AuthenticationException;
 import org.acegisecurity.AuthenticationManager;
@@ -68,9 +46,33 @@ import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.Stapler;
 import org.kohsuke.stapler.StaplerRequest;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.StringTokenizer;
+import com.google.api.client.auth.oauth2.AuthorizationCodeFlow;
+import com.google.api.client.auth.oauth2.BearerToken;
+import com.google.api.client.auth.oauth2.ClientParametersAuthentication;
+import com.google.api.client.auth.oauth2.Credential;
+import com.google.api.client.auth.openidconnect.IdToken;
+import com.google.api.client.auth.openidconnect.IdTokenResponse;
+import com.google.api.client.http.GenericUrl;
+import com.google.api.client.http.HttpRequest;
+import com.google.api.client.http.HttpRequestFactory;
+import com.google.api.client.http.HttpRequestInitializer;
+import com.google.api.client.http.HttpTransport;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.JsonFactory;
+import com.google.api.client.json.JsonObjectParser;
+import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.common.annotations.VisibleForTesting;
+
+import hudson.Extension;
+import hudson.Util;
+import hudson.model.Descriptor;
+import hudson.model.Failure;
+import hudson.model.User;
+import hudson.security.SecurityRealm;
+import hudson.util.HttpResponses;
+import hudson.util.Secret;
+import jenkins.model.Jenkins;
+import jenkins.security.SecurityListener;
 
 /**
  * Login with Google using OpenID Connect / OAuth 2
@@ -110,8 +112,10 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
     private final String domain;
 
     /**
-     * If true, the redirection will happen based on the root URL determined from request.
-     * If false, the redirection will happen based on the root URL configured in Jenkins.
+     * If true, the redirection will happen based on the root URL determined from
+     * request.
+     * If false, the redirection will happen based on the root URL configured in
+     * Jenkins.
      */
     private boolean rootURLFromRequest;
 
@@ -148,7 +152,8 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
     }
 
     /**
-     * Login begins with our {@link #doCommenceLogin(StaplerRequest, String,String)} method.
+     * Login begins with our {@link #doCommenceLogin(StaplerRequest, String,String)}
+     * method.
      */
     @Override
     public String getLoginUrl() {
@@ -156,10 +161,13 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
     }
 
     /**
-     * Acegi has this notion that first an {@link org.acegisecurity.Authentication} object is created
+     * Acegi has this notion that first an {@link org.acegisecurity.Authentication}
+     * object is created
      * by collecting user information and then the act of authentication is done
-     * later (by {@link org.acegisecurity.AuthenticationManager}) to verify it. But in case of OpenID,
-     * we create an {@link org.acegisecurity.Authentication} only after we verified the user identity,
+     * later (by {@link org.acegisecurity.AuthenticationManager}) to verify it. But
+     * in case of OpenID,
+     * we create an {@link org.acegisecurity.Authentication} only after we verified
+     * the user identity,
      * so {@link org.acegisecurity.AuthenticationManager} becomes no-op.
      */
     @Override
@@ -171,8 +179,7 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
                             return authentication;
                         throw new BadCredentialsException("Unexpected authentication type: " + authentication);
                     }
-                }
-        );
+                });
     }
 
     @Override
@@ -185,12 +192,14 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
      */
     @SuppressWarnings("unused") // stapler
     @Restricted(DoNotUse.class) // stapler only
-    public HttpResponse doCommenceLogin(StaplerRequest request, @QueryParameter String from,  @Header("Referer") final String referer) throws IOException {
+    public HttpResponse doCommenceLogin(StaplerRequest request, @QueryParameter String from,
+            @Header("Referer") final String referer) throws IOException {
         final String redirectOnFinish = getRedirectOnFinish(from, referer);
 
         final AuthorizationCodeFlow flow = new AuthorizationCodeFlow.Builder(
                 BearerToken.queryParameterAccessMethod(), HTTP_TRANSPORT, JSON_FACTORY, TOKEN_SERVER_URL,
-                new ClientParametersAuthentication(clientId, clientSecret.getPlainText()), clientId, AUTHORIZATION_SERVER_URL)
+                new ClientParametersAuthentication(clientId, clientSecret.getPlainText()), clientId,
+                AUTHORIZATION_SERVER_URL)
                 .setScopes(Arrays.asList(SCOPE))
                 .build();
 
@@ -207,8 +216,8 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
                     }
                     final Credential credential = flow.createAndStoreCredential(response, null);
 
-                    HttpRequestFactory requestFactory =
-                            HTTP_TRANSPORT.createRequestFactory(new HttpRequestInitializer() {
+                    HttpRequestFactory requestFactory = HTTP_TRANSPORT
+                            .createRequestFactory(new HttpRequestInitializer() {
                                 public void initialize(HttpRequest request) throws IOException {
                                     credential.initialize(request);
                                     request.setParser(new JsonObjectParser(JSON_FACTORY));
@@ -219,10 +228,10 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
                     HttpRequest request = requestFactory.buildGetRequest(url);
 
                     GoogleUserInfo info = request.execute().parseAs(GoogleUserInfo.class);
-                    GrantedAuthority[] authorities = new GrantedAuthority[]{SecurityRealm.AUTHENTICATED_AUTHORITY};
+                    GrantedAuthority[] authorities = new GrantedAuthority[] { SecurityRealm.AUTHENTICATED_AUTHORITY };
                     // logs this user in.
-                    UsernamePasswordAuthenticationToken token =
-                            new UsernamePasswordAuthenticationToken(info.getEmail(), "", authorities);
+                    UsernamePasswordAuthenticationToken token = new UsernamePasswordAuthenticationToken(info.getEmail(),
+                            "", authorities);
 
                     // prevent session fixation attack
                     Stapler.getCurrentRequest().getSession().invalidate();
@@ -233,7 +242,8 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
                     User u = User.get(token.getName());
                     info.updateProfile(u);
                     // fire "LoggedIn" and not "authenticated" because
-                    // "authenticated" is "Fired when a user was successfully authenticated by password."
+                    // "authenticated" is "Fired when a user was successfully authenticated by
+                    // password."
                     // which is less relevant in our case
                     SecurityListener.fireLoggedIn(token.getName());
                     return new HttpRedirect(redirectOnFinish);
@@ -286,15 +296,15 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
 
     private String getRootURL() {
         if (rootURLFromRequest) {
-            return Jenkins.getInstance().getRootUrlFromRequest();
+            return Jenkins.get().getRootUrlFromRequest();
         } else {
-            return Jenkins.getInstance().getRootUrl();
+            return Jenkins.get().getRootUrl();
         }
     }
 
-
     /**
-     * This is where the user comes back to at the end of the OpenID redirect ping-pong.
+     * This is where the user comes back to at the end of the OpenID redirect
+     * ping-pong.
      */
     @SuppressWarnings("unused") // stapler
     @Restricted(DoNotUse.class) // stapler only
@@ -313,23 +323,26 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
             return "Login with Google";
         }
         /*
-         TODO: Find some way to validate the credentials.
-         This current returns "Invalid OAuth 2 grant type: CLIENT_CREDENTIALS"
-        public FormValidation doCheckApiSecret(@QueryParameter String clientId, @QueryParameter String value) {
-            if (clientId == null) {
-                return FormValidation.error("API Key is required");
-            }
-            ClientCredentialsTokenRequest tokenRequest = new ClientCredentialsTokenRequest(HTTP_TRANSPORT, JSON_FACTORY, TOKEN_SERVER_URL)
-                    .setClientAuthentication(new ClientParametersAuthentication(clientId, value))
-                    .setScopes(Collections.singleton(SCOPE));
-            try {
-                TokenResponse response = tokenRequest.execute();
-                return FormValidation.ok("Credentials are valid");
-            } catch (IOException e) {
-                return FormValidation.error(e,"Credentials are invalid, or do not have expected scopes.");
-            }
-        }
-            */
+         * TODO: Find some way to validate the credentials.
+         * This current returns "Invalid OAuth 2 grant type: CLIENT_CREDENTIALS"
+         * public FormValidation doCheckApiSecret(@QueryParameter String
+         * clientId, @QueryParameter String value) {
+         * if (clientId == null) {
+         * return FormValidation.error("API Key is required");
+         * }
+         * ClientCredentialsTokenRequest tokenRequest = new
+         * ClientCredentialsTokenRequest(HTTP_TRANSPORT, JSON_FACTORY, TOKEN_SERVER_URL)
+         * .setClientAuthentication(new ClientParametersAuthentication(clientId, value))
+         * .setScopes(Collections.singleton(SCOPE));
+         * try {
+         * TokenResponse response = tokenRequest.execute();
+         * return FormValidation.ok("Credentials are valid");
+         * } catch (IOException e) {
+         * return FormValidation.error(
+         * e,"Credentials are invalid, or do not have expected scopes.");
+         * }
+         * }
+         */
 
     }
 }
